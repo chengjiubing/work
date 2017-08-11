@@ -1,0 +1,157 @@
+from rsf.proj import *
+
+par = dict(
+    nx=420,
+    ny=256,
+    nz=160,
+    dx=10.0,
+    dy=10.0,
+    dz=10.0,
+
+    nt=1501,
+    dt=0.0008,
+    vref=1200., # k-space adjustment reference velocity <= 1.5Vs_min
+
+    vp0_1=2988,
+    vs0_1=1610,
+    eps_1=-0.0464,
+    del_1=-0.1462,
+    gam_1=-0.1,
+    the_1=0.0,
+    phi_1=30.0,
+    vp0_2=0,
+    vs0_2=0,
+    eps_2=0.,
+    del_2=-0.,
+    gam_2=-0.,
+    the_2=0.0,
+    phi_2=0.0,
+
+    nxpad=20,
+    nzpad=20,
+    nypad=20,
+    nt1=750,
+    nt2=800,
+    nt3=850,
+	
+    )
+# =================================================================================
+#   get VTI model
+# =================================================================================
+Flow(['vp0','vs0','epsi','del','gam','the','phi'], None,
+     '''
+         twolayer3dti
+         vs0=${TARGETS[1]}
+         epsi=${TARGETS[2]}
+         del=${TARGETS[3]}
+         gam=${TARGETS[4]}
+         the=${TARGETS[5]}
+         phi=${TARGETS[6]}
+         ny=%d
+         nx=%d
+         nz=%d
+         dy=%g
+         dx=%g
+         dz=%g
+         vp0_1=%g
+         vs0_1=%g
+         eps_1=%g
+         del_1=%g
+         gam_1=%g
+         the_1=%g
+         phi_1=%g
+         vp0_2=%g
+         vs0_2=%g
+         eps_2=%g
+         del_2=%g
+         gam_2=%g
+         the_2=%g
+         phi_2=%g
+         ''' % (par['ny'],par['nx'],par['nz'],par['dy'],par['dx'],par['dz'],
+                par['vp0_1'],par['vs0_1'],par['eps_1'],par['del_1'],par['gam_1'],par['the_1'],par['phi_1'],
+                par['vp0_2'],par['vs0_2'],par['eps_2'],par['del_2'],par['gam_2'],par['the_2'],par['phi_2'])
+    )
+
+
+# ============================================================================
+# calculate elastic wave field
+# ============================================================================
+
+Flow(['Elasticvx1','Elasticvy1','Elasticvz1','Elasticvx2','Elasticvy2','Elasticvz2','Elasticvx3','Elasticvy3','Elasticvz3','recordvx','recordvy','recordvz'],
+        'vp0 vs0 epsi del gam phi',
+        '''
+        hti3delastic
+        Elasticvx1=${TARGETS[0]}
+        Elasticvy1=${TARGETS[1]}
+        Elasticvz1=${TARGETS[2]}
+        Elasticvx2=${TARGETS[3]}
+        Elasticvy2=${TARGETS[4]}
+        Elasticvz2=${TARGETS[5]}
+        Elasticvx3=${TARGETS[6]}
+        Elasticvy3=${TARGETS[7]}
+        Elasticvz3=${TARGETS[8]}
+        recordvx=${TARGETS[9]}
+        recordvy=${TARGETS[10]}
+        recordvz=${TARGETS[11]}
+        vp0=${SOURCES[0]}
+        vs0=${SOURCES[1]}
+        epsi=${SOURCES[2]}
+        del=${SOURCES[3]}
+        gam=${SOURCES[4]}
+        phi=${SOURCES[5]}
+        nt=%d
+        dt=%g
+        nx=%d
+        ny=%d
+        nz=%d
+        nxpad=%d
+        nypad=%d
+        nzpad=%d
+        dx=%g
+        dy=%g
+        dz=%g
+        vref=%g
+        nt1=%d
+        nt2=%d
+        nt3=%d
+        ''' %(par['nt'],par['dt'],par['nx'],par['ny'],par['nz'],par['nxpad'],
+              par['nypad'],par['nzpad'],par['dx'],par['dy'],par['dz'],par['vref'],par['nt1'],par['nt2'],par['nt3'])
+
+    )
+name0='''
+Elasticvx2 Elasticvy2 Elasticvz2 Elasticvx3 Elasticvy3 Elasticvz3 
+'''
+
+for qq in Split(name0):
+        Result(qq,
+		'''
+		byte gainpanel=e pclip=98|
+		grey3 polarity=n scalebar=y scalebar=n frame1=%d frame2=%d frame3=%d
+                wanttitle=n flat=n screenratio=1 axisfat=3 axiscol=7 labelsz=11
+                labelfat=3 point1=0.5
+		'''
+		%(par['nz']/2,par['nx']/2,par['ny']/2)
+		)
+
+name1='''
+recordvx recordvy recordvz
+'''
+
+for qq in Split(name1):
+        Result(qq,
+		'''
+		byte gainpanel=e pclip=96 |
+		grey3 polarity=n scalebar=n frame1=0 frame2=%d frame3=%d wanttitle=n flat=n screenratio=1 axisfat=3 axiscol=7 labelsz=11 labelfat=3
+		'''
+		%(par['nx']/2-par['nxpad']-3,par['ny']/2-par['nypad']-3)
+		)
+
+#Flow('vx','recordvx',
+#                '''
+#                window n2=1 min2=%g
+#                '''
+#                %(par['nx']/200))
+
+
+
+End()

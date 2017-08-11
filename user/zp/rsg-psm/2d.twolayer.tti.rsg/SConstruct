@@ -1,0 +1,157 @@
+from rsf.proj import *
+
+par = dict(
+    nx=300,
+    nz=300,
+    dx=0.01,
+    dz=0.01,
+
+    nt=401,
+    dt=0.001,
+    nxpad=20,
+    nzpad=20,
+	
+    rho_1=2000.0,
+    vp0_1=2500,
+    vs0_1=1200,
+    eps_1=0.2,
+    del_1=-0.2,
+    the_1=0.0,
+    rho_2=2000.0,
+    vp0_2=3600,
+    vs0_2=1800,
+    eps_2=0.2,
+    del_2=0.1,
+    the_2=30.0,
+
+    n2w=1,
+    o2w=0.81,
+
+    seed=2012,
+    eps=1.e-6,
+    npk=50,
+
+    )
+
+# =================================================================================
+#   get VTI model
+# =================================================================================
+Flow(['vp0','vs0','epsi','del','the','rho'], None,
+     '''
+         twolayer2dti
+         vs0=${TARGETS[1]}
+         epsi=${TARGETS[2]}
+         del=${TARGETS[3]}
+         the=${TARGETS[4]}
+         rho=${TARGETS[5]}
+         nx=%d
+         nz=%d
+         dx=%g
+         dz=%g
+         vp0_1=%g
+         vs0_1=%g
+         eps_1=%g
+         del_1=%g
+         the_1=%g
+	     rho_1=%g
+         vp0_2=%g
+         vs0_2=%g
+         eps_2=%g
+         del_2=%g
+         the_2=%g
+	     rho_2=%g
+         ''' % (par['nx'],par['nz'],par['dx'],par['dz'],
+                par['vp0_1'],par['vs0_1'],par['eps_1'],par['del_1'],par['the_1'],par['rho_1'],
+                par['vp0_2'],par['vs0_2'],par['eps_2'],par['del_2'],par['the_2'],par['rho_2'])
+    )
+
+
+# ============================================================================
+# calculate wave field using rotated-staggered grid pseudo-spectral method
+# ============================================================================
+
+Flow(['ElasticvxRSG','ElasticvzRSG'],
+        'vp0 vs0 epsi del the',
+        '''
+        tti2delastic_cpml
+        vp0=${SOURCES[0]}
+        vs0=${SOURCES[1]}
+		epsi=${SOURCES[2]}
+		del=${SOURCES[3]}
+		the=${SOURCES[4]}
+        Elasticvx=${TARGETS[0]}
+        Elasticvz=${TARGETS[1]}
+        nt=%d
+        dt=%g
+        nxpad=%g
+        nzpad=%g
+        ''' %(par['nt'],par['dt'],par['nxpad'],
+			par['nzpad'])
+
+    )
+name0='''
+ElasticvxRSG ElasticvzRSG
+'''
+
+Flow('interface','ElasticvxRSG',
+     '''
+     math output="(%d-1)*%g*7/12"
+     ''' % (par['nz'],par['dz'])
+    )
+
+Plot('interface',
+     '''
+     graph yreverse=y color=c transp=n pad=n plotfat=1 scalebar=n
+     min1=0 max1=3 
+     min2=0 max2=3
+     wanttitle=n wantaxis=n screenratio=1
+     '''
+     )
+
+for qq in Split(name0):
+	Plot(qq,
+		'''
+		grey polarity=n color=j scalebar=n screenratio=1. wanttitle=n pclip=95
+		axisfat=5 axiscol=7 labelsz=10
+		'''
+		)
+
+for qq in Split(name0):
+    Result(qq+'Interf',[qq,'interface'],'Overlay')
+
+Flow('ElasticzRSGwave','ElasticvzRSG',
+        '''
+        window n2=%d min2=%g
+        ''' % (par['n2w'],par['o2w']))
+
+Result('ElasticzRSGwave',
+        '''
+        graph label1=Z title='RSG pseudo-spectral' label2=Amplitude screenratio=0.5
+        ''')
+
+# ============================================================================
+# Elastic wavefield mode decomposition 
+# ============================================================================
+
+Flow(['ElasticPxKSS', 'ElasticPzKSS', 'ElasticSxKSS', 'ElasticSzKSS'],
+      'vp0 vs0 epsi del the ElasticvxRSG ElasticvzRSG',
+         '''
+         tti2delrdec_stiffiness
+         vp0=${SOURCES[0]}
+         vs0=${SOURCES[1]}
+         epsi=${SOURCES[2]} 
+         del=${SOURCES[3]}
+         the=${SOURCES[4]}
+         Elasticx=${SOURCES[5]}
+         Elasticz=${SOURCES[6]}
+         ElasticPx=${TARGETS[0]}
+         ElasticPz=${TARGETS[1]}
+         ElasticSx=${TARGETS[2]}
+         ElasticSz=${TARGETS[3]}
+         eps=%g
+         seed=%d
+         npk=%d
+         ''' % (par['eps'],par['seed'],par['npk'])
+    )
+
+End()
